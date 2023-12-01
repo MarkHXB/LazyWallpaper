@@ -1,0 +1,5 @@
+requests~=2.31.0
+PyPexels~=1.0.0rc1
+pystray~=0.19.5
+Pillow~=10.1.0
+pexels~=0.0.11
