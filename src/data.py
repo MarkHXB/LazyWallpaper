@@ -1,6 +1,8 @@
 import datetime
 import json
 import os.path
+
+from exceptions.tryToFetchDailyWallpapersException import TryToFetchDailyWallpapersException
 from constants import *
 
 try:
@@ -62,7 +64,7 @@ class Data:
             url = photo['url']
             name = photo['name']
             filepath = photo['filepath']
-            res = requests.get(url, headers={'Authorization': API_KEY})
+            res = requests.get(url, headers=API_HEADER)
             res.raise_for_status()
 
             # prepare img for saving
@@ -98,7 +100,12 @@ class Data:
                     idx = next((i for i, wp in enumerate(self.wallpapers) if wp['name'] == self.current_wallpaper_name),
                                None)
 
-                    if idx + 1 >= len(self.wallpapers):
+                    if idx is None:
+                        # replace this shitty code
+                        p = self.wallpapers[0]
+                        self.current_wallpaper_name = p['name']
+                        p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+                    elif idx + 1 >= len(self.wallpapers):
                         # start from beginning
                         p = self.wallpapers[0]
                         self.current_wallpaper_name = p['name']
@@ -107,10 +114,14 @@ class Data:
                         p = self.wallpapers[idx + 1]
                         self.current_wallpaper_name = p['name']
                         p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+
+            else:
+                raise TryToFetchDailyWallpapersException("from next_photo")
         except Exception as exc:
             print(exc)
 
         self.save_config()
+
         if not os.path.isfile(p['filepath']):
             return self.save_photo(p)
         else:
@@ -132,4 +143,18 @@ class Data:
     def should_update_daily_wallpapers(self):
         date = datetime.datetime.strptime(self.last_request_time, DATETIME_FORMAT)
         date += datetime.timedelta(days=1)
-        return datetime.datetime.now() >= date
+        return datetime.datetime.now() >= date and self.isValid()
+
+    def update_wallpapers(self, args, fetch_api):
+        # if not self.should_update_daily_wallpapers():
+        #    raise Exception('Wallpapers cannot be refreshed, because either user exceeded daily download limit or not waited 24 hours.')
+        if not fetch_api:
+            raise Exception('Fetch api not found to update wallpapers.')
+        w = fetch_api(args)
+        if not w:
+            raise Exception('Not found any newer version of photos for today.')
+
+        self.wallpapers = w
+        self.save_config()
+
+

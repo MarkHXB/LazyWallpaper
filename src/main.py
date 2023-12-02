@@ -12,6 +12,8 @@
  + request pexels api
  + use images - screen resolution doesnt matter because of windows 11
 """
+from exceptions.tryToFetchDailyWallpapersException import TryToFetchDailyWallpapersException
+from constants import *
 import ctypes
 import os
 
@@ -34,63 +36,66 @@ def on_startup():
     #  1. get user lat, long or city [weather.py] ✅
     #  2. request weather api - should consume lat, long [weather.py] ✅
     #  3. decision: current season, current weather type [ later: parameters ]⌛ [weather.py] ✅
-    #  4. get MAX_DAILIY_REQUESTS urls and persist it for later use, if its altered [pexels.py] ⌛
+    #  4. get MAX_DAILIY_REQUESTS urls and persist it for later use, if its altered [pexels.py] ✅
     #  5. (if user has set wallpaper before, it should be loaded)[methodName], if not, (download the first one from the MAX_DAILIY_REQUESTS persist it and)[methodName] (setbg)[methodName] ⌛
     try:
-        # Init data
-        data = Data()
+        # load user config
         data.load_config()
 
-        # Data validation
-        if not data.isValid():
-            raise Exception('User data is not valid, User exceeded daily quote')
-
-        # 4.
         # get photo from pexels api and prepare it with arguments
-        if data.should_update_daily_wallpapers():
-            data.wallpapers = get_daily_photos('wallpaper', weather.get_weather_params())
-            data.save_config()
-
-        on_next_bg(data)
-
-        # persist photo to hard drive and edit data layer
-        # filepath = data.save_photo(photo)
-
+        on_refresh()
     except Exception as ex:
         print(ex)
 
 
-def on_next_bg(data):
-    filepath = data.next_photo()
-    ctypes.windll.user32.SystemParametersInfoW(20, 0, filepath, 0)
+def on_next_bg():
+    try:
+        filepath = data.next_photo()
+        ctypes.windll.user32.SystemParametersInfoW(20, 0, filepath, 0)
+    except Exception as exc:
+        raise exc
 
 
-def on_prev_bg(data):
-    p = data.previous_photo()
-    # ctypes.windll.user32.SystemParametersInfoW(20, 0, p.filepath, 0)
+def on_prev_bg():
+    try:
+        filepath = data.prev_photo()
+        ctypes.windll.user32.SystemParametersInfoW(20, 0, filepath, 0)
+    except Exception as exc:
+        print(exc)
+        on_refresh()
+
+
+def on_refresh():
+    data.update_wallpapers(args=weather.get_weather_params(), fetch_api=get_daily_photos)
 
 
 def on_exit():
-    pass
+    icon.stop()
 
 
-# Function to be triggered when the icon is clicked
-"""
-def on_clicked(icon, item):
-    print(f'Clicked {item}')
+def start_tray_app():
+    # Create an icon image
+    image = Image.open("../assets/icon.png")  # Replace with your icon image path
+    menu = pystray.Menu(
+        pystray.MenuItem('Download', on_startup),
+        pystray.MenuItem('Next ✅', on_next_bg),
+        pystray.MenuItem('Previous', on_prev_bg),
+        pystray.MenuItem('──────────', lambda item: None),
+        pystray.MenuItem('Exit', on_exit)
+    )
 
-# Create an icon image
-image = Image.open("icon.png")  # Replace with your icon image path
-menu = pystray.Menu(
-    pystray.MenuItem('Item 1', on_clicked),
-    pystray.MenuItem('Item 2', on_clicked),
-    pystray.MenuItem('Item 3', on_clicked)
-)
+    # Create the System Tray icon
+    icon = pystray.Icon(APP_NAME, image, APP_NAME, menu)
+    icon.run()
 
-# Create the System Tray icon
-icon = pystray.Icon("MyApp", image, "My App", menu)
-icon.run()
-icon.notify("Valami", "asdasdsa")
-"""
 
-on_startup()
+try:
+    global data, icon
+    data = Data()
+    on_startup()
+    try:
+        start_tray_app()
+    except TryToFetchDailyWallpapersException as exc:
+        pass
+except Exception as exc:
+    print(exc)

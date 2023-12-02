@@ -1,0 +1,2 @@
+class TryToFetchDailyWallpapersException(Exception):
+    pass
