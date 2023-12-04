@@ -1,0 +1,2 @@
+class SourceOfWallpapersIsEmptyException(Exception):
+    pass

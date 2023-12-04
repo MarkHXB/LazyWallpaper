@@ -37,6 +37,10 @@ LazyWallpaper is open to contributions. Feel free to fork this repository, make 
 
 For any queries, issues, or feature requests, please create an issue on this repository.
 
+# Motivation:
+
+
+
 # License:
 
 LazyWallpaper is licensed under [License Name]. Refer to the LICENSE file for more details. ( pending )
