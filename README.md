@@ -39,7 +39,7 @@ For any queries, issues, or feature requests, please create an issue on this rep
 
 # Motivation:
 
-
+Inspired by book of Automate the Boring Stuff with Python. Do this project just for exercise and learning purposes but it could be an efficient application who likes adaptable background wallpaper. 
 
 # License:
 
