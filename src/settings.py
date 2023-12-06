@@ -29,6 +29,8 @@ class Settings:
 
     def save(self):
         try:
+            if not os.path.isfile(self.settings_filepath):
+                self._init()
             with open(self.settings_filepath, 'w') as file:
                 json.dump(self.to_dict(), file)
         except Exception as exc:

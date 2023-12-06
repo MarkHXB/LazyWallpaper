@@ -1,7 +1,6 @@
 import datetime
 import json
 import os.path
-from urllib.parse import urlparse
 
 from exceptions.sourceOfWallpapersIsEmptyException import SourceOfWallpapersIsEmptyException
 from constants import *
@@ -15,24 +14,23 @@ except ImportError:
 
 class Data:
     filename = 'user.json'
-    app_folder = os.path.dirname(os.path.abspath(__file__))
 
     def __init__(self, last_request_time=datetime.datetime.now().strftime(DATETIME_FORMAT), current_day_requests=0,
-                 wallpapers=[], current_wallpaper_name='', source=PEXELS_TITLE):
+                 wallpapers=[], current_wallpaper_id=0, source=PEXELS_TITLE):
         self.last_request_time = last_request_time
         self.current_day_requests = current_day_requests  # per photo
         self.wallpapers = wallpapers
-        self.current_wallpaper_name = current_wallpaper_name
+        self.current_wallpaper_id = current_wallpaper_id
         self.source = source
-        self.data_filepath = os.path.join(self.app_folder, self.source, self.filename)
-        self.photos_folder = os.path.join(self.app_folder, self.source, 'photos')
+        self.data_filepath = os.path.join(APP_FOLDER, self.source, self.filename)
+        self.photos_folder = os.path.join(APP_FOLDER, self.source, 'photos')
 
     def to_dict(self):
         return {
             'last_request_time': self.last_request_time,
             'current_day_requests': self.current_day_requests,
             'wallpapers': self.wallpapers,
-            'current_wallpaper_name': self.current_wallpaper_name,
+            'current_wallpaper_id': self.current_wallpaper_id,
         }
 
     def load(self):
@@ -44,7 +42,7 @@ class Data:
                 self.last_request_time = data['last_request_time']
                 self.current_day_requests = data['current_day_requests']
                 self.wallpapers = data['wallpapers']
-                self.current_wallpaper_name = data['current_wallpaper_name']
+                self.current_wallpaper_id = data['current_wallpaper_id']
         except Exception as exc:
             print(exc)
 
@@ -57,15 +55,15 @@ class Data:
         except Exception as exc:
             print(exc)
 
-    def save_photo(self, photo):
+    def save_photo(self):
         try:
-            if not photo:
+            p = self.get_current_photo()
+            if not p:
                 raise Exception(f'Photo not found!')
 
             # download img by url
-            url = photo['url']
-            name = photo['name']
-            filepath = photo['filepath']
+            url = p['url']
+            filepath = p['filepath']
             header = None
             if self.source == PEXELS_TITLE:
                 header = {'Authorization': PEXELS_API_HEADER}
@@ -75,17 +73,6 @@ class Data:
             res.raise_for_status()
 
             # prepare img for saving
-            if not str(url).endswith(('.jpg', '.jpeg', '.png')):
-                # get extension from content-type
-                content_type = res.headers.get('content-type')
-                ext = content_type.split('/')[1]
-                parsed_filepath = os.path.abspath(urlparse(filepath).path)
-                filepath = rf'{parsed_filepath}.{ext}'
-            else:
-                if not filepath.endswith(('.jpg', '.jpeg', '.png')):
-                    ext = url.split('.')[-1]
-                    filepath = rf'{filepath}.{ext}'
-
             self.current_day_requests += 1
             self.last_request_time = datetime.datetime.now().strftime(DATETIME_FORMAT)
 
@@ -105,33 +92,24 @@ class Data:
             print(ex)
 
     def next_photo(self):
-        p = None
         try:
             if self.wallpapers:
                 # init
-                if not self.current_wallpaper_name:
-                    p = self.wallpapers[0]
-                    self.current_wallpaper_name = p['name']
-                    p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+                if not self.current_wallpaper_id:
+                    self.current_wallpaper_id = self.wallpapers[0]['id']
                 else:  # get next
                     # get index from wallpapers where name equals
-                    idx = next((i for i, wp in enumerate(self.wallpapers) if wp['name'] == self.current_wallpaper_name),
+                    idx = next((i for i, wp in enumerate(self.wallpapers) if wp['id'] == self.current_wallpaper_id),
                                None)
 
                     if idx is None:
                         # replace this shitty code
-                        p = self.wallpapers[0]
-                        self.current_wallpaper_name = p['name']
-                        p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+                        self.current_wallpaper_id = self.wallpapers[0]['id']
                     elif idx + 1 >= len(self.wallpapers):
                         # start from beginning
-                        p = self.wallpapers[0]
-                        self.current_wallpaper_name = p['name']
-                        p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+                        self.current_wallpaper_id = self.wallpapers[0]['id']
                     else:
-                        p = self.wallpapers[idx + 1]
-                        self.current_wallpaper_name = p['name']
-                        p['filepath'] = os.path.join(self.photos_folder, self.current_wallpaper_name)
+                        self.current_wallpaper_id = self.wallpapers[idx + 1]['id']
             else:
                 raise SourceOfWallpapersIsEmptyException(f'called through next_photo')
         except Exception as exc:
@@ -139,10 +117,51 @@ class Data:
 
         self.save()
 
-        if not os.path.isfile(p['filepath']) and self.isValid():
-            return self.save_photo(p)
+        if os.path.isfile((p := self.get_current_photo()['filepath'])):
+            return p
         else:
-            return p['filepath']
+            if self.isValid():
+                return self.save_photo()
+
+    def get_current_photo(self):
+        if self.current_wallpaper_id is not None:
+            for p in self.wallpapers:
+                if p['id'] == self.current_wallpaper_id:
+                    return p
+        return None
+
+    def previous_photo(self):
+        try:
+            if self.wallpapers:
+                # init
+                last = len(self.wallpapers) - 1
+                if not self.current_wallpaper_id:
+                    self.current_wallpaper_id = self.wallpapers[last]['id']
+                else:  # get next
+                    # get index from wallpapers where name equals
+                    idx = next((i for i, wp in enumerate(self.wallpapers) if wp['id'] == self.current_wallpaper_id),
+                               None)
+
+                    if idx is None:
+                        # replace this shitty code
+                        self.current_wallpaper_id = self.wallpapers[last]['id']
+                    elif idx - 1 < 0:
+                        # start from beginning
+                        self.current_wallpaper_id = self.wallpapers[last]['id']
+                    else:
+                        self.current_wallpaper_id = self.wallpapers[idx - 1]['id']
+            else:
+                raise SourceOfWallpapersIsEmptyException(f'called through next_photo')
+        except Exception as exc:
+            raise exc
+
+        self.save()
+
+        if os.path.isfile((p := self.get_current_photo()['filepath'])):
+            return p
+        else:
+            if self.isValid():
+                return self.save_photo()
 
     def isValid(self):
         self.load()  # maybe store
@@ -165,19 +184,30 @@ class Data:
         date += datetime.timedelta(days=1)
         return datetime.datetime.now() >= date
 
+    def get_page_of_day(self):
+        if self.wallpapers is None:
+            return 1
+
+        if len(self.wallpapers) == QUANTITY_OF_DOWNLOADS_PER_PAGE:
+            return 2
+
+        if QUANTITY_OF_DOWNLOADS_PER_PAGE == 0:
+            raise Exception('QUANTITY_OF_DOWNLOADS_PER_PAGE must not be 0.')
+
+        return (len(self.wallpapers) / QUANTITY_OF_DOWNLOADS_PER_PAGE) + 1
+
     def update_wallpapers(self, args, fetch_api):
-        # if not self.should_update_daily_wallpapers():
-        #    raise Exception('Wallpapers cannot be refreshed, because either user exceeded daily download limit or not waited 24 hours.')
         if not fetch_api:
             raise Exception('Fetch api not found to update wallpapers.')
-        w = fetch_api(args)
+        w = fetch_api(args=args, source=self.source, page=self.get_page_of_day())
         if not w:
             raise Exception('Not found any newer version of photos for today.')
 
-        self.wallpapers = w
+        for p in w:
+            self.wallpapers.append(p)
         self.save()
 
     def set_source(self, source):
         self.source = source
-        self.data_filepath = os.path.join(self.app_folder, self.source, self.filename)
-        self.photos_folder = os.path.join(self.app_folder, self.source, 'photos')
+        self.data_filepath = os.path.join(APP_FOLDER, self.source, self.filename)
+        self.photos_folder = os.path.join(APP_FOLDER, self.source, 'photos')
