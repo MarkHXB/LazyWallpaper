@@ -105,4 +105,4 @@ def get_current_season():
 
 
 def get_weather_params():
-    return f'background {get_current_season()} {get_current_weather().name.title()} Nature'
+    return f'background {get_current_season()} {get_current_weather().name.title().replace("_"," ")} Nature'

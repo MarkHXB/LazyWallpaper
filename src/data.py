@@ -43,8 +43,18 @@ class Data:
                 self.current_day_requests = data['current_day_requests']
                 self.wallpapers = data['wallpapers']
                 self.current_wallpaper_id = data['current_wallpaper_id']
+
+                # check whether the limited count of photos is full
+                if os.path.isdir(self.photos_folder):
+                    if self._count_of_files_in_folder() >= MAX_FILES_TO_STORE:
+                        files_to_delete = self._get_oldest_filepaths()
+                        for f in files_to_delete:
+                            try:
+                                os.remove(f)
+                            except OSError as e:
+                                print(f'Cant delete file: {e}')
         except Exception as exc:
-            print(exc)
+            raise exc
 
     def save(self):
         try:
@@ -53,7 +63,7 @@ class Data:
             with open(self.data_filepath, 'w') as file:
                 json.dump(self.to_dict(), file)
         except Exception as exc:
-            print(exc)
+            raise exc
 
     def save_photo(self):
         try:
@@ -184,8 +194,27 @@ class Data:
         date += datetime.timedelta(days=1)
         return datetime.datetime.now() >= date
 
+    def _count_of_files_in_folder(self):
+        files = os.listdir(self.photos_folder)
+        file_count = 0
+
+        for file in files:
+            file_path = os.path.join(self.photos_folder, file)
+            if os.path.isfile(file_path):
+                file_count += 1
+        return file_count
+
+    def _get_oldest_filepaths(self):
+        if self.wallpapers is None or MAX_DAILY_REQUESTS < 1 or len(self.wallpapers) < MAX_DAILY_REQUESTS:
+            return
+
+        dates = [d['added_time'] for d in self.wallpapers]
+        sorted_dates = dates.sort(reverse=True)
+        return sorted_dates[:MAX_DAILY_REQUESTS]
+
     def get_page_of_day(self):
-        if self.wallpapers is None:
+        # second check to avoid resulting fractional numbers
+        if self.wallpapers is None or len(self.wallpapers) < QUANTITY_OF_DOWNLOADS_PER_PAGE:
             return 1
 
         if len(self.wallpapers) == QUANTITY_OF_DOWNLOADS_PER_PAGE:

@@ -1,6 +1,5 @@
+import datetime
 import json
-import os
-from urllib.parse import urlparse
 
 import requests
 
@@ -39,7 +38,8 @@ def get_daily_photos_from_pexels(args, source, page):
         id = p['id']
         url = p['src']['original']
         filepath = get_file_path(res, url, source, str(id))
-        result.append({'id': id, 'url': url, 'filepath': filepath})
+        result.append({'id': id, 'url': url,
+                       'filepath': filepath, 'added_time': str(datetime.datetime.now().strftime(DATETIME_FORMAT))})
 
     return result
 
@@ -52,7 +52,8 @@ def get_daily_photos_from_unsplash(args, source, page):
         id = p['id']
         url = p['urls']['full']
         filepath = get_file_path(res, url, source, str(id))
-        result.append({'id': id, 'url': url, 'filepath': filepath})
+        result.append({'id': id, 'url': url,
+                       'filepath': filepath, 'added_time': str(datetime.datetime.now().strftime(DATETIME_FORMAT))})
 
     return result
 
